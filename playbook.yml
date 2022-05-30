@@ -1,0 +1,124 @@
+---
+- hosts: rpi4 
+  become: yes
+  become_user: root
+  become_method: sudo
+  gather_facts: true
+  vars_files:
+    - secrets.yml
+  vars:
+    data_path: "/data"
+
+  tasks:
+    - name: Check auth vars exists
+      stat:
+        path: credential_vars.yml
+      register: creds
+
+    - fail:
+        msg: "variable '{{ item }}' is not defined or set"
+      when: not vars[item]
+      with_items:
+        - "mqtt_accounts"
+
+    - name: validate docker-compose
+      shell: docker-compose -f templates/docker-compose.yml config
+      register: validate
+      delegate_to: localhost
+      become: no
+      failed_when: validate.rc != 0
+  
+    - name: load docker compose file
+      include_vars:
+        file: templates/docker-compose.yml
+        name: docker_compose
+      tags: deploy
+
+    - name: Create data directory
+      file: 
+        path: "{{ item.path }}"
+        state: directory
+        owner: "{{ item.owner | default(omit) }}"
+        group: "{{ item.group | default(omit) }}"
+      loop:
+        - path: /data/portainer_data
+        - path: /data/hassio/config
+        - path: /data/tailscale
+        - path: /data/mqtt-explorer
+        - path: /data/mosquitto/config
+          owner: 1001
+          group: 1001
+        - path: /data/mosquitto/data
+          owner: 1001
+          group: 1001
+        - path: /data/mosquitto/log
+          owner: 1001
+          group: 1001
+        - path: /data/node-red
+          owner: 1000
+          group: 1000
+
+    - name: Create config directory
+      file: 
+        path: "/{{ data_path }}/{{ item | relpath | regex_replace(item | basename, '') | regex_replace('templates', '') }}"
+        state: directory
+      with_fileglob:
+        - templates/mosquitto/config/*.j2
+        - templates/zigbee2mqtt/*.j2
+        - templates/node-red/*.j2
+
+    - name: Create configs
+      template:
+        src: "{{ item }}"
+        dest: /{{ data_path }}/{{ item | relpath | regex_replace(item | basename, '') | regex_replace('templates', '') }}/{{ item | basename | regex_replace('\.j2$', '') }}
+        owner: 1001
+        group: 1001
+        backup: yes
+      with_fileglob:
+        - templates/mosquitto/config/*.j2
+        - templates/zigbee2mqtt/*.j2
+        - templates/node-red/*.j2
+        - templates/hassio/config/*.j2
+      tags: reconfig
+
+    - name: Deploy portainer container
+      docker_compose:
+        project_name: hassio
+        definition: "{{ docker_compose }}"
+        debug: yes
+      register: output
+      tags: deploy
+
+    - ansible.builtin.debug:
+        var: output
+      tags: deploy
+
+    - name: Customize homeassistant
+      community.docker.docker_container_exec:
+        container: hassio_homeassistant_1
+        command: "{{ item }}"
+      register: output
+      loop:
+        - /bin/bash -c 'apk add tzdata'
+        - /bin/bash -c 'wget -O - https://get.hacs.xyz | bash -'
+      tags: deploy
+
+    - ansible.builtin.debug:
+        var: output
+      tags: deploy
+
+    - name: Customize node-red
+      community.docker.docker_container_exec:
+        container: hassio_node-red_1
+        command: "{{ item }}"
+      register: output
+      loop:
+        - /bin/bash -c 'npm install node-red-contrib-home-assistant-websocket node-red-contrib-time-range-switch'
+      tags: deploy
+
+    - ansible.builtin.debug:
+        var: output
+      tags: deploy
+
+    - debug: 
+        msg: "IN HA generate a long-lived access token for node-red access"

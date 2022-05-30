@@ -1,0 +1,139 @@
+---
+version: "3.7"
+# networks for comm
+networks:
+  svcs:
+
+services:
+  homeassistant:
+    restart: always
+    image: homeassistant/home-assistant:2022.4.7
+    #    expose:
+    #      - "8123"
+    #ports:
+    #  - "8123:8123"
+    volumes:
+      - "/data/hassio/config:/config"
+      - "/etc/localtime:/etc/localtime:ro"
+      - "/etc/timezone:/etc/timezone:ro"
+    depends_on:
+      - mqtt
+# Requirement for sonofflan
+    network_mode: "host" 
+    # networks:
+    #   - svcs
+# workaround for not able to use bridge while in host mode
+    extra_hosts:
+      - "mqtt:127.0.0.1"
+      - "zigbee2mqtt:127.0.0.1"
+    environment:
+      - TZ=Asia/Manila
+
+  zigbee2mqtt:
+    restart: unless-stopped
+    image: koenkk/zigbee2mqtt:1.25.1
+    expose:
+      - "8080"
+    ports:
+      - "8080:8080"
+    devices:
+      - /dev/ttyUSB0:/dev/ttyUSB0
+    volumes:
+      - "/data/zigbee2mqtt/:/app/data"
+      - "/run/udev:/run/udev:ro"
+      - "/etc/localtime:/etc/localtime:ro"
+      - "/etc/timezone:/etc/timezone:ro"
+    depends_on:
+      - mqtt
+    networks:
+      - svcs
+    environment:
+      - TZ="Asia/Manila"
+  mqtt:
+    restart: always
+    image: eclipse-mosquitto:2.0.14
+    user: "1001:1001"
+    volumes:
+      - "/data/mosquitto/config:/mosquitto/config"
+      - "/data/mosquitto/log:/mosquitto/log"
+      - "/data/mosquitto/data:/mosquitto/data"
+      - "/etc/localtime:/etc/localtime:ro"
+      - "/etc/timezone:/etc/timezone:ro"
+    ports:
+      - "1883:1883"
+    command: /usr/sbin/mosquitto -c /mosquitto/config/mosquitto.conf
+    networks:
+      - svcs
+    environment:
+      - TZ=Asia/Manila
+
+  node-red:
+    image: nodered/node-red:latest
+    environment:
+      - TZ=Asia/Manila
+      - NODE_OPTIONS=--max_old_space_size=128
+      - NODE_RED_CREDENTIAL_SECRET={{ nodered_credential_secret }}
+    ports:
+      - "1880:1880"
+    networks:
+      - svcs
+    volumes:
+      - /data/node-red:/data
+
+  tailscale:
+    image: tailscale/tailscale
+    restart: unless-stopped
+    environment:
+      - TZ=Asia/Manila
+      - AUTH_KEY={{ tailscale_auth_key }}
+      - ROUTES=192.168.0.0/24
+    command: tailscaled
+    privileged: true
+    network_mode: "host"
+    volumes:
+      - /data/tailscale:/var/lib/tailscale
+      - /dev/net/tun:/dev/net/tun
+
+  mqtt-explorer:
+    image: smeagolworms4/mqtt-explorer
+    restart: unless-stopped
+    environment:
+      - TZ=Asia/Manila
+      - HTTP_PORT=4000
+      - CONFIG_PATH=/mqtt-explorer/config
+      - HTTP_USER={{ mqtt_explorer_username }}
+      - HTTP_PASSWORD={{ mqtt_explorer_password  }}
+    ports:
+      - "4000:4000"
+    networks:
+      - svcs
+    volumes:
+      - /data/mqtt-explorer:/mqtt-explorer/config
+  wyze-bridge:
+    container_name: wyze-bridge
+    restart: unless-stopped
+    image: mrlt8/wyze-bridge:1.4.5
+    ports:
+      - 1935:1935 # RTMP
+      - 8554:8554 # RTSP
+      - 8888:8888 # HLS
+    environment:
+      - TZ=Asia/Manila
+      - WYZE_EMAIL={{ wyze_email }} # Replace with wyze email 
+      - WYZE_PASSWORD={{ wyze_password }} # Replace with wyze password
+      - MQTT_HOST=192.168.0.114:1883
+      - MQTT_TOPIC=wyze
+      - MQTT_AUTH=wyzebridge:{{ wyzebridge_mqtt_password }}
+    volumes:
+      - "/etc/localtime:/etc/localtime:ro"
+      - "/etc/timezone:/etc/timezone:ro"
+    
+#  esphome:
+#    image: esphome/esphome:2022.4.0
+#    restart: unless-stopped
+#    networks:
+#      - svcs
+#    volumes:
+#      - "./esphome:/config"
+#    expose:
+#      - "6052

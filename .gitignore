@@ -1,0 +1,4 @@
+secrets.yml
+inventory.yml
+vaultpassfile
+**/data

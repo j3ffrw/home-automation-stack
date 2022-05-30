@@ -1,0 +1,40 @@
+# {{ ansible_managed }}
+
+homeassistant: true
+permit_join: false
+mqtt:
+  base_topic: zigbee2mqtt
+  server: mqtt://mqtt
+  user: {{ mqtt_accounts.zigbee2mqtt.username }}
+  password: {{ mqtt_accounts.zigbee2mqtt.password }}
+serial:
+  port: /dev/ttyUSB0
+advanced:
+  homeassistant_legacy_entity_attributes: false
+  legacy_api: false
+  legacy_availability_payload: false
+device_options:
+  legacy: false
+frontend:
+  port: 8080
+  auth_token: {{ zigbee2mqtt_ui_token }}
+  url: http://192.168.0.114:8080
+devices:
+  '0x00124b0023b3a3be':
+    friendly_name: snt-mtn-1
+  '0x00124b0022658914':
+    friendly_name: snf-btn-1
+  '0x00124b00234e3a16':
+    friendly_name: snf-cnt-1
+  '0x00124b00234e8275':
+    friendly_name: snf-cnt-2
+  '0x00158d000588e4c4':
+    friendly_name: xmi-smk-2
+  '0x00158d000587f3ca':
+    friendly_name: xmi-smk-1
+  '0x00124b0025121fba':
+    friendly_name: snf-cnt-3
+  '0x00124b0025129434':
+    friendly_name: snf-cnt-4
+  '0x00124b002512b527':
+    friendly_name: snf-cnt-5

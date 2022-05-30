@@ -1,0 +1,63 @@
+# {{ ansible_managed }}
+
+# Loads default set of integrations. Do not remove.
+default_config:
+
+# Text to speech
+tts:
+  - platform: google_translate
+
+automation: !include automations.yaml
+script: !include scripts.yaml
+scene: !include scenes.yaml
+panel_iframe: !include panel_iframe.yaml
+
+sensor:
+  - platform: mitemp_bt
+    mac: "58:2D:34:32:49:11"
+    monitored_conditions:
+      - temperature
+#  - platform: mqtt_room
+#    device_id: espresense_00cc39
+#    state_topic: "espresense/rooms"
+#  - platform: mqtt_room
+#    device_id: espresense_e4e63b
+#    state_topic: "espresense/rooms"
+#  - platform: mqtt_room
+#    device_id: espresense_74b33b
+#    state_topic: "espresense/rooms"
+#  - platform: mqtt_room
+#    device_id: espresense_6041f9
+#    state_topic: "espresense/rooms"
+  - platform: mqtt_room
+    device_id: "garmin:e37d066413d2"
+    name: 'Jeff Watch'
+    state_topic: 'espresense/rooms'
+    timeout: 60
+    away_timeout: 120 # number of seconds after which the enitity will get status not_hom
+  - platform: mqtt_room
+    device_id: "tile:cf49600d2ed8"
+    name: 'Jeff Keysmart'
+    state_topic: 'espresense/rooms'
+    timeout: 60
+    away_timeout: 120 # number of seconds after which the enitity will get status not_hom
+  - platform: mqtt_room
+    device_id: "f535bdddc295"
+    name: 'Panchito'
+    state_topic: 'espresense/rooms'
+    timeout: 60
+    away_timeout: 120 # number of seconds after which the enitity will get status not_hom
+  - platform: mqtt_room
+    device_id: "name:70mai_t01_d68d"
+    name: 'Yuki TPMS'
+    state_topic: 'espresense/rooms'
+    timeout: 60
+    away_timeout: 120 # number of seconds after which the enitity will get status not_hom
+
+camera:
+  - platform: ffmpeg
+    input: 'rtsp://192.168.0.114:8554/front-porch-cam'
+  - platform: ffmpeg
+    input: 'rtsp://192.168.0.114:8554/garage'
+  - platform: ffmpeg
+    input: 'rtsp://192.168.0.114:8554/back'
