@@ -1,0 +1,52 @@
+- id: '1652641699305'
+  alias: ToggleKitchenLight
+  description: ''
+  trigger:
+  - platform: device
+    domain: mqtt
+    device_id: eca704f0b367c327cb26f617612e2ce5
+    type: action
+    subtype: single
+    discovery_id: 0x00124b0022658914 action_single
+  condition: []
+  action:
+  - type: toggle
+    device_id: c530acd71e52c125ae9e189d10642ca7
+    entity_id: switch.sonoff_100129fe37_2
+    domain: switch
+  mode: queued
+- id: '1654063427113'
+  alias: New Automation
+  description: ''
+  trigger:
+  - platform: device
+    type: turned_on
+    device_id: ec5450fed83b1e54b8ded86c64bbbf2b
+    entity_id: light.gateway_light_04cf8c9829d9
+    domain: light
+  condition: []
+  action:
+  - service: xiaomi_aqara.play_ringtone
+    data:
+      ringtone_vol: 100
+      gw_mac: 04:CF:8C:98:29:D9
+      ringtone_id: '1'
+  mode: single
+- id: 'wemos_servo'
+  alias: Write Servo Value to ESP
+  trigger:
+    platform: state
+    entity_id: input_number.servo_control
+  action:
+    - service: esphome.webservo_control_servo
+      data_template:
+        level: '{{ trigger.to_state.state | int }}'
+- id: '1654063427114'
+  alias: "Turn On Living Room TV with WakeOnLan"
+    trigger:
+      - platform: webostv.turn_on
+        entity_id: media_player.lg_webos_smart_tv
+    action:
+      - service: wake_on_lan.send_magic_packet
+        data:
+          mac: 64:CB:E9:05:67:04

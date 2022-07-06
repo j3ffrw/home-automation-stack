@@ -1,0 +1,8 @@
+{
+  "MISCALE_MAC": "{{ miscale_mac }}",
+  "MQTT_HOST": "{{ mqtt_host }}",
+  "MQTT_USERNAME": "{{ mqtt_accounts.miscale.username }}",
+  "MQTT_PASSWORD": "{{ mqtt_accounts.miscale.password }}",
+  "MQTT_PREFIX": "miscale",
+  "USERS": {{ miscale_users | to_json }}
+}

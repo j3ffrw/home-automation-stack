@@ -1,0 +1,45 @@
+miscale_mac: "D3:2F:BF:30:E4:99"
+mqtt_host: hassio-avcn.local
+mqtt_prefix: miScale
+miscale_users:
+  - GT: 60
+    LT: 80
+    SEX: male
+    NAME: jeff
+    HEIGHT: 165
+    DOB: 1981-11-19
+  - GT: 50
+    LT: 60
+    SEX: female
+    NAME: imi 
+    HEIGHT: 165
+    DOB: 1985-01-23
+
+mqtt_room_trackers: 
+  - name: "Jeff Watch"
+    device_id: "garmin:e37d066413d2"
+  - name: "Jeff Keysmart"
+    device_id: "tile:cf49600d2ed8"
+  - name: "Panchito"
+    device_id: "f535bdddc295"
+  - name: "Yuki TPMS"
+    device_id: "name:70mai_t01_d68d"
+  - name: "Jeff Phone"
+    device_id: "iBeacon:05cfb75f-705b-4721-b736-2ad2c20d207c-100-1"
+
+espresense_atc_sensors:
+  - name: bed_atc_c45
+    location: bedroom
+    identifiers: a4c138144c45
+    device:
+      configuration_url: http://192.168.0.118
+  - name: camacc_atc_c27
+    location: bedroom
+    identifiers: a4c138a66c27
+    device:
+      configuration_url: http://192.168.0.118
+  - name: filament_atc_ce3
+    location: bedroom
+    identifiers: a4c1389acce3
+    device:
+      configuration_url: http://192.168.0.118

@@ -1,20 +1,15 @@
 ---
-- hosts: rpi4 
+- hosts: hassio-avcn.local 
   become: yes
   become_user: root
   become_method: sudo
   gather_facts: true
-  vars_files:
-    - secrets.yml
   vars:
     data_path: "/data"
+    docker_project_name: hassio
+    zbdongle_firmware_url: "https://github.com/Koenkk/Z-Stack-firmware/raw/master/coordinator/Z-Stack_3.x.0/bin/CC1352P2_CC2652P_launchpad_coordinator_20221226.zip"
 
   tasks:
-    - name: Check auth vars exists
-      stat:
-        path: credential_vars.yml
-      register: creds
-
     - fail:
         msg: "variable '{{ item }}' is not defined or set"
       when: not vars[item]
@@ -27,12 +22,16 @@
       delegate_to: localhost
       become: no
       failed_when: validate.rc != 0
+      tags: deploy
+      check_mode: no
   
     - name: load docker compose file
       include_vars:
         file: templates/docker-compose.yml
         name: docker_compose
-      tags: deploy
+      tags: 
+        - deploy
+        - upgrade_zbdongle
 
     - name: Create data directory
       file: 
@@ -45,6 +44,7 @@
         - path: /data/hassio/config
         - path: /data/tailscale
         - path: /data/mqtt-explorer
+        - path: /data/esphome
         - path: /data/mosquitto/config
           owner: 1001
           group: 1001
@@ -57,15 +57,21 @@
         - path: /data/node-red
           owner: 1000
           group: 1000
+        - path: /data/rhasspy
+        - path: /data/miscale
+      tags: deploy
 
     - name: Create config directory
       file: 
-        path: "/{{ data_path }}/{{ item | relpath | regex_replace(item | basename, '') | regex_replace('templates', '') }}"
+        path: "{{ data_path }}/{{ item | relpath | regex_replace(item | basename, '') | regex_replace('templates', '') }}"
         state: directory
       with_fileglob:
         - templates/mosquitto/config/*.j2
         - templates/zigbee2mqtt/*.j2
         - templates/node-red/*.j2
+        - templates/postgres/initdb/*.j2
+        - templates/miscale/*.j2
+      tags: reconfig
 
     - name: Create configs
       template:
@@ -79,13 +85,17 @@
         - templates/zigbee2mqtt/*.j2
         - templates/node-red/*.j2
         - templates/hassio/config/*.j2
+        - templates/postgres/initdb/*.j2
+        - templates/rhasspy/profiles/en/*.j2
+        - templates/miscale/*.j2
       tags: reconfig
 
-    - name: Deploy portainer container
-      docker_compose:
-        project_name: hassio
+    - name: Deploy automation stack
+      community.docker.docker_compose:
+        project_name: "{{ docker_project_name }}"
         definition: "{{ docker_compose }}"
         debug: yes
+        profiles: "{{ docker_profiles | default('core')}}"
       register: output
       tags: deploy
 
@@ -93,32 +103,75 @@
         var: output
       tags: deploy
 
+    - name: Upgrade Sonoff ZBDongle Coordinator
+      block:
+        - name: Stop z2m service
+          community.docker.docker_compose:
+            project_name: "{{ docker_project_name }}"
+            definition: "{{ docker_compose }}"
+            debug: yes
+            services: zigbee2mqtt
+            stopped: yes
+            profiles: "{{ docker_profiles | default('core')}}"
+          register: output
+
+        - name: Wait for z2m to stopped
+          ansible.builtin.pause:
+            minutes: 1
+
+        - name: Perform upgrade
+          community.docker.docker_container:
+            name: "ti-cc-tool"
+            output_logs: true
+            state: started
+            detach: false
+            recreate: true
+            image: "ckware/ti-cc-tool"
+            command:
+              - "-ewv"
+              - "-p"
+              - "/dev/ttyUSB0"
+              - "--bootloader-sonoff-usb"
+            env:
+              FIRMWARE_URL: "{{ zbdongle_firmware_url }}"
+            devices:
+              - "/dev/ttyUSB0:/dev/ttyUSB0:rwm" 
+          register: output
+
+        - ansible.builtin.debug:
+            msg: "{{ output.container.Output }}"
+
+        - name: Remove ti-cc-tool
+          community.docker.docker_container:
+            name: "ti-cc-tool"
+            state: absent
+            image: "ckware/ti-cc-tool"
+          register: output
+
+        - name: Start z2m service
+          community.docker.docker_compose:
+            project_name: "{{ docker_project_name }}"
+            definition: "{{ docker_compose }}"
+            debug: yes
+            services: zigbee2mqtt
+            profiles: "{{ docker_profiles | default('core')}}"
+          register: output
+      tags:
+        - upgrade_zbdongle
+
     - name: Customize homeassistant
       community.docker.docker_container_exec:
-        container: hassio_homeassistant_1
+        container: "{{ docker_project_name }}_homeassistant_1"
         command: "{{ item }}"
       register: output
       loop:
         - /bin/bash -c 'apk add tzdata'
         - /bin/bash -c 'wget -O - https://get.hacs.xyz | bash -'
-      tags: deploy
+      tags: customize_hassio
 
     - ansible.builtin.debug:
         var: output
-      tags: deploy
-
-    - name: Customize node-red
-      community.docker.docker_container_exec:
-        container: hassio_node-red_1
-        command: "{{ item }}"
-      register: output
-      loop:
-        - /bin/bash -c 'npm install node-red-contrib-home-assistant-websocket node-red-contrib-time-range-switch'
-      tags: deploy
-
-    - ansible.builtin.debug:
-        var: output
-      tags: deploy
+      tags: customize_hassio
 
     - debug: 
         msg: "IN HA generate a long-lived access token for node-red access"

@@ -1,3 +1,4 @@
+#jinja2:lstrip_blocks: True, trim_blocks: True
 # {{ ansible_managed }}
 
 # Loads default set of integrations. Do not remove.
@@ -12,47 +13,12 @@ script: !include scripts.yaml
 scene: !include scenes.yaml
 panel_iframe: !include panel_iframe.yaml
 
-sensor:
-  - platform: mitemp_bt
-    mac: "58:2D:34:32:49:11"
-    monitored_conditions:
-      - temperature
-#  - platform: mqtt_room
-#    device_id: espresense_00cc39
-#    state_topic: "espresense/rooms"
-#  - platform: mqtt_room
-#    device_id: espresense_e4e63b
-#    state_topic: "espresense/rooms"
-#  - platform: mqtt_room
-#    device_id: espresense_74b33b
-#    state_topic: "espresense/rooms"
-#  - platform: mqtt_room
-#    device_id: espresense_6041f9
-#    state_topic: "espresense/rooms"
-  - platform: mqtt_room
-    device_id: "garmin:e37d066413d2"
-    name: 'Jeff Watch'
-    state_topic: 'espresense/rooms'
-    timeout: 60
-    away_timeout: 120 # number of seconds after which the enitity will get status not_hom
-  - platform: mqtt_room
-    device_id: "tile:cf49600d2ed8"
-    name: 'Jeff Keysmart'
-    state_topic: 'espresense/rooms'
-    timeout: 60
-    away_timeout: 120 # number of seconds after which the enitity will get status not_hom
-  - platform: mqtt_room
-    device_id: "f535bdddc295"
-    name: 'Panchito'
-    state_topic: 'espresense/rooms'
-    timeout: 60
-    away_timeout: 120 # number of seconds after which the enitity will get status not_hom
-  - platform: mqtt_room
-    device_id: "name:70mai_t01_d68d"
-    name: 'Yuki TPMS'
-    state_topic: 'espresense/rooms'
-    timeout: 60
-    away_timeout: 120 # number of seconds after which the enitity will get status not_hom
+sonoff:
+  username: !secret sonoff_username
+  password: !secret sonoff_password
+  reload: always
+
+sensor: !include sensor.yaml
 
 camera:
   - platform: ffmpeg
@@ -61,3 +27,117 @@ camera:
     input: 'rtsp://192.168.0.114:8554/garage'
   - platform: ffmpeg
     input: 'rtsp://192.168.0.114:8554/back'
+
+alarm_control_panel:
+  - platform: manual
+    name: HA Alarm
+    arming_time: 30
+    delay_time: 5
+    trigger_time: 5
+    code: {{ alarm_control_code }}
+    disarmed:
+      trigger_time: 5
+    armed_home:
+      arming_time: 5
+      delay_time: 5
+      trigger_time: 5
+    armed_away:
+      arming_time: 5
+      delay_time: 5
+
+notify:
+  - name: Pushbullet
+    platform: pushbullet
+    api_key: {{ pushbullet_api_key }}
+
+localtuya:
+  - host: 192.168.0.132
+    device_id: C8B
+    local_key: {{ blitzwolf_socket_key }}
+    friendly_name: BlitzWolf Intelligent Socket
+    protocol_version: "3.3"
+    entities:
+      - platform: switch
+        friendly_name: "BlitzWolf Intelligent Socket"
+        id: 1
+  - host: 192.168.0.132
+    device_id: C81
+    local_key: {{ blitzwolf_water_irrigation_key }}
+    friendly_name: BlitzWolf Water Irrigation Timer 3
+    protocol_version: "3.3"
+    entities:
+      - platform: sensor
+        friendly_name: "Soil Temperature"
+        id: 101
+        unit_of_measurement: "°C"
+        device_class: temperature
+      - platform: sensor
+        friendly_name: "Soil Moisture"
+        id: 102
+        unit_of_measurement: "%"
+        device_class: humidity
+      - platform: sensor
+        friendly_name: Water spent
+        unit_of_measurement: "litres"
+        id: 103
+      - platform: sensor
+        friendly_name: "Irrigation status"  # 0 - stopped, 1 - runs, 3 - delayed
+        id: 106
+      - platform: number
+        friendly_name: Countdown minutes
+        min_value: 0
+        max_value: 60   # Probably can go further
+        id: 107
+      - platform: switch
+        friendly_name: "Irrigation Tap (negated)"
+        id: 108
+      - platform: binary_sensor
+        friendly_name: "Postponed due to moisture"
+        id: 125
+
+recorder:
+  db_url: !secret psql_string
+  db_retry_wait: 15 # Wait 15 seconds before retrying
+  exclude:
+    domains:
+      - automation
+      - updater
+    entity_globs:
+      - sensor.weather_*
+    entities:
+      - sun.sun # Don't record sun data
+      - sensor.last_boot # Comes from 'systemmonitor' sensor platform
+      - sensor.date
+    event_types:
+      - call_service # Don't record service calls
+
+wake_on_lan:
+
+smartir:
+
+climate:
+  - platform: smartir
+    name: Bedroom AC
+    unique_id: bedroom_ac
+    device_code: 2701
+    controller_data: lty_ir_1_send_raw_command
+    temperature_sensor: sensor.bed_atc_c45_temperature
+    humidity_sensor: sensor.bed_atc_c45_humidity
+    power_sensor: sensor.ac_current_consumption
+
+utility_meter:
+  plant_water_daily:
+    name: Daily Plant Irrigation
+    unique_id: bwwtr01_1_daily
+    source: sensor.water_spent
+    cycle: daily
+    delta_values: true
+  plant_water_monthly:
+    name: Monthly Plant Irrigation
+    unique_id: bwwtr01_1_monthly
+    source: sensor.water_spent
+    cycle: monthly
+    delta_values: true
+    
+mqtt:
+  sensor: !include mqtt_sensor.yaml

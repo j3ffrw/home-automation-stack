@@ -1,0 +1,41 @@
+{% for sensor in miscale_users %}
+- name: "{{ sensor.NAME }} weight"
+  state_topic: "miscale/{{ sensor.NAME }}/weight"
+  json_attributes_topic: "miscale/{{ sensor.NAME }}/weight"
+  value_template: "{% raw %}{{ value_json['weight'] }}{% endraw %}"
+  unit_of_measurement: "kg"
+  icon: mdi:scale-bathroom
+  state_class: "measurement"
+- name: "{{ sensor.NAME }} impedance"
+  state_topic: "miscale/{{ sensor.NAME }}/weight"
+  json_attributes_topic: "miscale/{{ sensor.NAME }}/weight"
+  value_template: "{% raw %}{{ value_json['impedance'] }}{% endraw %}"
+  icon: mdi:scale-bathroom
+  state_class: "measurement"
+{% endfor %}
+
+{% set atc_device_class=[
+{"name": "temperature", "vt": "{{ value_json.temp }}", "uom": "°C"},
+{"name": "humidity", "vt": "{{ value_json.rh }}", "uom": "%"},
+{"name": "battery", "vt": "{{ value_json.batt }}", "uom": "%"},
+{"name": "voltage", "vt": "{{ value_json.mV }}", "uom": "V"}
+] %}
+{% for sensor in espresense_atc_sensors %}
+  {% for dc in atc_device_class %}
+
+- name: "{{ sensor.name }} {{ dc.name }}"
+  unique_id: "atc_{{ sensor.identifiers[8:12] }}_{{ dc.name }}"
+  device:
+    manufacturer: Xiaomi Mijia
+    model: LYWSD03MMC
+    name: {{ sensor.name }}
+    configuration_url: {{ sensor.device.configuration_url }}
+    identifiers: {{ sensor.identifiers }}
+    suggested_area: {{ sensor.location }}
+  state_topic: "espresense/devices/miTherm:{{ sensor.identifiers }}/{{ sensor.location }}"
+  value_template: "{{ dc.vt }}"
+  device_class: "{{ dc.name }}"
+  unit_of_measurement: "{{ dc.uom }}"
+  state_class: measurement
+  {% endfor %}
+{% endfor %}

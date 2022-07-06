@@ -7,7 +7,7 @@ networks:
 services:
   homeassistant:
     restart: always
-    image: homeassistant/home-assistant:2022.4.7
+    image: homeassistant/home-assistant:2022.11
     #    expose:
     #      - "8123"
     #ports:
@@ -16,6 +16,7 @@ services:
       - "/data/hassio/config:/config"
       - "/etc/localtime:/etc/localtime:ro"
       - "/etc/timezone:/etc/timezone:ro"
+      - "/run/dbus:/run/dbus:ro"
     depends_on:
       - mqtt
 # Requirement for sonofflan
@@ -26,12 +27,16 @@ services:
     extra_hosts:
       - "mqtt:127.0.0.1"
       - "zigbee2mqtt:127.0.0.1"
+      - "postgres:127.0.0.1"
     environment:
       - TZ=Asia/Manila
+    profiles:
+      - homeassistant
+      - core 
 
   zigbee2mqtt:
     restart: unless-stopped
-    image: koenkk/zigbee2mqtt:1.25.1
+    image: koenkk/zigbee2mqtt:1.29.2
     expose:
       - "8080"
     ports:
@@ -49,6 +54,10 @@ services:
       - svcs
     environment:
       - TZ="Asia/Manila"
+    profiles:
+      - zigbee2mqtt
+      - core 
+        
   mqtt:
     restart: always
     image: eclipse-mosquitto:2.0.14
@@ -66,9 +75,18 @@ services:
       - svcs
     environment:
       - TZ=Asia/Manila
+    profiles:
+      - mqtt
+      - core 
 
   node-red:
     image: nodered/node-red:latest
+    restart: always
+    healthcheck:
+      disable: true
+    depends_on:
+      - homeassistant
+      - mqtt
     environment:
       - TZ=Asia/Manila
       - NODE_OPTIONS=--max_old_space_size=128
@@ -79,6 +97,9 @@ services:
       - svcs
     volumes:
       - /data/node-red:/data
+    profiles:
+      - node-red 
+      - core 
 
   tailscale:
     image: tailscale/tailscale
@@ -93,6 +114,9 @@ services:
     volumes:
       - /data/tailscale:/var/lib/tailscale
       - /dev/net/tun:/dev/net/tun
+    profiles:
+      - tailscale 
+      - core 
 
   mqtt-explorer:
     image: smeagolworms4/mqtt-explorer
@@ -109,31 +133,99 @@ services:
       - svcs
     volumes:
       - /data/mqtt-explorer:/mqtt-explorer/config
+    profiles:
+      - mqtt-explorer
+      - core 
+
   wyze-bridge:
     container_name: wyze-bridge
     restart: unless-stopped
-    image: mrlt8/wyze-bridge:1.4.5
+    image: mrlt8/wyze-bridge:1.6.12
     ports:
       - 1935:1935 # RTMP
       - 8554:8554 # RTSP
       - 8888:8888 # HLS
+      - 5000:5000 # webui
     environment:
       - TZ=Asia/Manila
       - WYZE_EMAIL={{ wyze_email }} # Replace with wyze email 
       - WYZE_PASSWORD={{ wyze_password }} # Replace with wyze password
       - MQTT_HOST=192.168.0.114:1883
       - MQTT_TOPIC=wyze
-      - MQTT_AUTH=wyzebridge:{{ wyzebridge_mqtt_password }}
+      - MQTT_AUTH=wyzebridge:{{ mqtt_accounts.wyzebridge.password }}
     volumes:
       - "/etc/localtime:/etc/localtime:ro"
       - "/etc/timezone:/etc/timezone:ro"
-    
-#  esphome:
-#    image: esphome/esphome:2022.4.0
-#    restart: unless-stopped
-#    networks:
-#      - svcs
-#    volumes:
-#      - "./esphome:/config"
-#    expose:
-#      - "6052
+    profiles:
+      - wyze-bridge
+
+  esphome:
+    image: esphome/esphome:2022.9.4
+    volumes:
+      - /data/esphome:/config:rw
+      # Use local time for logging timestamps
+      - /etc/localtime:/etc/localtime:ro
+    network_mode: host
+    restart: always
+    profiles:
+      - esphome
+      - core 
+
+  postgres:
+    restart: always
+    image: postgres:14.4-alpine
+    volumes:
+      - /data/postgres/db:/data:rw
+      - /data/postgres/initdb:/docker-entrypoint-initdb.d:rw
+      # Use local time for logging timestamps
+      - /etc/localtime:/etc/localtime:ro
+    networks:
+      - svcs
+    ports:
+      - 5432:5432
+    environment:
+      -  POSTGRES_PASSWORD={{ postgres_password }}
+      -  PGDATA=/data
+      -  POSTGRES_INITDB_ARGS="--encoding=utf8"
+    profiles:
+      - postgres 
+      - core 
+
+  rhasspy:
+    image: "rhasspy/rhasspy:2.5.11"
+    restart: unless-stopped
+    volumes:
+        - "/data/rhasspy/profiles:/profiles"
+        - "/etc/localtime:/etc/localtime:ro"
+    ports:
+        - "12101:12101"
+    devices:
+        - "/dev/snd:/dev/snd"
+    command: --user-profiles /profiles --profile en    
+    profiles:
+      - core 
+
+  mi-scale:
+    container_name: mi-scale
+    build: https://github.com/lolouk44/xiaomi_mi_scale.git
+    restart: always
+    network_mode: host
+    #    privileged: true
+    volumes:
+      - "/etc/localtime:/etc/localtime:ro"
+      - "/etc/timezone:/etc/timezone:ro"
+      - "/run/dbus:/run/dbus:ro"
+      - "/data/miscale:/data"
+    profiles:
+      - miscale 
+
+  ti-cc-tool:
+    image: "ckware/ti-cc-tool"
+    network_mode: "host" 
+    environment:
+      - FIRMWARE_URL={{ zbdongle_firmware_url }}
+    devices:
+      - /dev/ttyUSB0:/dev/ttyUSB0
+    command: [ "-ewv", "-p", "/dev/ttyUSB0", "--bootloader-sonoff-usb" ]
+    profiles:
+      - upgrade_zbdongle 

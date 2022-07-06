@@ -1,0 +1,38 @@
+{% for tracker in mqtt_room_trackers %}
+- platform: mqtt_room
+  state_topic: "espresense/rooms"
+  timeout: 60
+  away_timeout: 120
+  name: "{{ tracker.name }}"
+  device_id: "{{ tracker.device_id }}"
+{% endfor %}
+- platform: pushbullet
+  api_key: {{ pushbullet_api_key }}
+  monitored_conditions:
+    - body
+- platform: systemmonitor
+  resources:
+  - type: processor_use
+  - type: disk_use_percent
+    arg: "/"
+  - type: disk_free
+    arg: "/"
+  - type: memory_use_percent
+  - type: ipv4_address
+    arg: wlan0
+  - type: network_in
+    arg: wlan0
+  - type: network_out
+    arg: wlan0
+  - type: throughput_network_in
+    arg: wlan0
+  - type: throughput_network_out
+    arg: wlan0
+  - type: processor_temperature
+  - type: last_boot
+# OPTIONAL CPU Raspberry Pi Temp
+#  - platform: command_line
+#    name: CPU Temp
+#    command: "cat /sys/class/thermal/thermal_zone0/temp"
+#    unit_of_measurement: "°C"
+#    value_template: '{{ value | multiply(0.001) | round(2)  }}
